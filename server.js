@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const jwt     = require('jsonwebtoken');
+const crypto  = require('crypto');
 const { v4: uuid } = require('uuid');
 const fs      = require('fs');
 const path    = require('path');
@@ -73,16 +74,26 @@ function writeDB(d){ fs.writeFileSync(DB, JSON.stringify(d, null, 2)); }
 app.get('/api/product',  (_,res) => res.json(readDB().product));
 app.get('/api/settings', (_,res) => res.json(readDB().settings));
 
+// ── EMAIL VALIDATION HELPER ───────────────────────────
+function isValidEmail(email) {
+  if (!email) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 // POST /api/orders
 app.post('/api/orders', (req, res) => {
   const { customer, email, phone, city, address, items, payment } = req.body;
   if (!customer || !phone || !city || !address || !items?.length)
     return res.status(400).json({ error: 'Missing required fields' });
+  if (email && !isValidEmail(email))
+    return res.status(400).json({ error: 'Invalid email address' });
   const db    = readDB();
   const price = Number(db.product.price);
+  // FIX: Total is always calculated server-side from db price (prevents frontend price tampering)
   const total = items.reduce((a,b)=> a + (b.qty * price), 0);
+  // FIX: Use uuid for order ID to prevent collision when orders are deleted
   const order = {
-    id: 'ORD-' + String(db.orders.length + 1).padStart(3,'0'),
+    id: 'ORD-' + uuid().slice(0,8).toUpperCase(),
     customer, email, phone, city, address,
     items: items.map(it=>({ name: db.product.name, qty: it.qty, price })),
     total,
@@ -100,16 +111,28 @@ app.post('/api/orders', (req, res) => {
 // ── RAZORPAY ─────────────────────────────────────────
 app.post('/api/payments/create-order', async (req, res) => {
   try {
-    const amt = Math.round(Number(req.body.amount || 0));
     if (!razorpay) return res.status(500).json({ error: 'Razorpay not configured' });
+    // FIX: Always recalculate amount server-side from db price; never trust client-sent amount
+    const db    = readDB();
+    const price = Number(db.product.price);
+    const items = req.body.items;
+    if (!items || !Array.isArray(items) || items.length === 0)
+      return res.status(400).json({ error: 'Items are required to calculate amount' });
+    const amt = items.reduce((a, b) => a + (b.qty * price), 0);
     if (!amt || amt < 1) return res.status(400).json({ error: 'Invalid amount' });
-    const order = await razorpay.orders.create({ amount: amt*100, currency:'INR', receipt:'rcpt_'+Date.now(), payment_capture:1 });
+    // FIX: Replaced deprecated payment_capture:1 with payment: { capture: 'automatic' }
+    const order = await razorpay.orders.create({
+      amount: Math.round(amt * 100),
+      currency: 'INR',
+      receipt: 'rcpt_' + Date.now(),
+      payment: { capture: 'automatic' }
+    });
     res.json({ success: true, order });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/payments/verify', (req, res) => {
-  const crypto = require('crypto');
+  // FIX: crypto is now required at top of file, not inside route handler
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
   const secret = process.env.RAZORPAY_KEY_SECRET || '';
   const expected = crypto.createHmac('sha256', secret).update(razorpay_order_id+'|'+razorpay_payment_id).digest('hex');
@@ -118,7 +141,12 @@ app.post('/api/payments/verify', (req, res) => {
 });
 
 // ── ADMIN AUTH ───────────────────────────────────────
-const SECRET = process.env.JWT_SECRET || 'moringai_secret';
+// FIX: JWT_SECRET is now REQUIRED. Server will throw at startup if not set, preventing insecure fallback.
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  console.error('❌  FATAL: JWT_SECRET is not set in environment variables. Server will not start.');
+  process.exit(1);
+}
 function auth(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ','');
   try { req.admin = jwt.verify(token, SECRET); next(); }

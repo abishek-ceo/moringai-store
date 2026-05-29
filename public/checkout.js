@@ -1,16 +1,23 @@
 // Frontend Razorpay checkout helper
 async function startRazorpayPayment(cartItems, customerData) {
-  const total = cartItems.reduce((a,b)=>a + (b.qty * b.price), 0);
+  // FIX: Send items to backend so amount is calculated server-side (prevents price tampering)
   const res = await fetch('/api/payments/create-order', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ amount: total })
+    body: JSON.stringify({ items: cartItems })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Could not create payment order');
+
+  // FIX: Read Razorpay key from meta tag injected by server instead of undefined window global
+  const razorpayKeyMeta = document.querySelector('meta[name="razorpay-key"]');
+  const razorpayKey = razorpayKeyMeta ? razorpayKeyMeta.getAttribute('content') : '';
+  if (!razorpayKey) throw new Error('Razorpay key not configured. Contact support.');
+
   return new Promise((resolve, reject) => {
     const options = {
-      key: window.RAZORPAY_KEY_ID || '',
-      amount: total * 100, currency: 'INR',
+      key: razorpayKey,
+      amount: data.order.amount,  // Use amount from server response, not frontend calculation
+      currency: 'INR',
       name: 'Moringai', description: 'Murungai Powder Order',
       order_id: data.order.id,
       handler: async function(response) {
