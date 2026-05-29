@@ -1,0 +1,19 @@
+{
+  "product": {
+    "name": "Moringai Murungai Powder",
+    "price": 899,
+    "description": "Single-origin, slow shade-dried leaves. No additives. Just pure Murungai powder for daily use.",
+    "stock": "In stock — ships within 2 days",
+    "chips": ["100g pouch", "30 servings", "Lab tested", "Vegan"],
+    "image": "https://pplx-res.cloudinary.com/image/upload/pplx_search_images/951cf018fc534502280a1b3ae3fe47d7c99cc8d0.jpg"
+  },
+  "orders": [],
+  "settings": {
+    "storeName": "Moringai",
+    "email": "moringa.info@gmail.com",
+    "website": "moringai.in",
+    "phone": "+919514499924",
+    "deliveryDays": 2,
+    "currency": "INR"
+  }
+}

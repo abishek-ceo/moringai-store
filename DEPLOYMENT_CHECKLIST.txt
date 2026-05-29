@@ -1,0 +1,13 @@
+Remaining items needed to go live:
+
+1. Razorpay Key ID
+2. Razorpay Key Secret
+3. Twilio SID
+4. Twilio Auth Token
+5. Twilio WhatsApp From number
+
+Optional:
+- GST number
+- Refund/return policy text
+- Logo file
+- Final contact address

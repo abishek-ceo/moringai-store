@@ -1,0 +1,10 @@
+Razorpay setup
+
+1. Create a Razorpay account: https://razorpay.com
+2. Go to Settings -> API Keys
+3. Copy Key ID and Key Secret into .env
+4. Include Razorpay checkout script in your frontend:
+   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+5. Set window.RAZORPAY_KEY_ID = "your_key_id" before using checkout.js
+6. Call /api/payments/create-order before opening checkout
+7. Call /api/payments/verify after successful payment
